@@ -1,7 +1,6 @@
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.PrintStream;
-import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
