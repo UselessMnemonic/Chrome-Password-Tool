@@ -1,14 +1,8 @@
-import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -38,7 +32,7 @@ public class AccountReader {
         return results;
     }
 
-    private static String decodePassword(byte[] passwordValue, byte[] masterKey) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+    private static String decodePassword(byte[] passwordValue, byte[] masterKey) throws Exception {
         byte[] iv = new byte[12];
         System.arraycopy(passwordValue, 3, iv, 0, 12);
 

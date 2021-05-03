@@ -85,7 +85,7 @@ public class Main {
             try {
                outputStream = new PrintStream(outputFile);
             } catch (FileNotFoundException e) {
-                System.err.printf("The specified output file cannot be used: %s.\n\n", e.getMessage());
+                System.err.printf("The output file cannot be used: %s\n\n", e.getMessage());
                 return;
             }
         }
@@ -95,7 +95,7 @@ public class Main {
             masterKey = Base64.getDecoder().decode(keyString);
             masterKey = Arrays.copyOfRange(masterKey, 5, masterKey.length);
         } catch (IllegalArgumentException e) {
-            System.err.print("The provided key is not correct Base64.\n\n");
+            System.err.printf("The provided key is invalid: %s\n\n", e.getMessage());
             return;
         }
 
@@ -103,14 +103,14 @@ public class Main {
         try {
             protector = Protector.getInstance();
         } catch (Exception e) {
-            System.err.print("Could not access OS encryption API. This OS might not be supported.\n\n");
+            System.err.printf("Error loading libraries: %s\n\n", e.getMessage());
             return;
         }
 
         try {
             masterKey = protector.unprotect(masterKey);
         } catch (Exception e) {
-            System.err.print("Could not decrypt data.\n\n");
+            System.err.printf("Master key recovery failed: %s\n\n", e.getMessage());
             return;
         }
 
@@ -124,7 +124,7 @@ public class Main {
 
             outputStream.print(outputString);
         } catch (Exception e) {
-            System.err.print("Error while decoding passwords: " + e.getMessage());
+            System.err.printf("Error while decoding passwords: %s", e.getMessage());
         }
 
         System.out.println();
