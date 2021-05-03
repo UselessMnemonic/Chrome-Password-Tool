@@ -9,14 +9,14 @@ import java.util.stream.Collectors;
 public class Main {
 
     private static final String HELP_TEXT =
-    "Usage: " + System.getProperty("program.name") + " [-ha] <login-data> <key> [out-file]\n" +
+    "Usage: java -jar Chrome-Password-Tool.jar [-ha] <login-data> <key> [out-file]\n" +
     "\n" +
     "Arguments:\n" +
     "    <login-data> Path to a Chrome passwords file.\n" +
-    "                 It should be at \"%%USERPROFILE%%\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Login Data\"\n" +
+    "                 It should be at \"%USERPROFILE%\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Login Data\"\n" +
     "\n" +
     "    <key>        Value of encrypted_key provided by Local State file.\n" +
-    "                 It should be at \"%%USERPROFILE%%\\AppData\\Local\\Google\\Chrome\\User Data\\Local State\"\n" +
+    "                 It should be at \"%USERPROFILE%\\AppData\\Local\\Google\\Chrome\\User Data\\Local State\"\n" +
     "\n" +
     "    [out-file]   Path to save the results. This file is overwritten if it already exists.\n" +
     "\n" +
