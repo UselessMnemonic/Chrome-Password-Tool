@@ -12,7 +12,7 @@ import java.util.List;
 
 public class AccountReader {
 
-    public static List<Account> readAccounts(File passwordsFile, byte[] masterKey) throws Exception {
+    public static List<Account> readAccounts(File passwordsFile, byte[] encryptionKey) throws Exception {
         ArrayList<Account> results = new ArrayList<>();
 
         try (Connection connection = DriverManager.getConnection("jdbc:sqlite:"+passwordsFile.getAbsolutePath())) {
@@ -20,7 +20,7 @@ public class AccountReader {
             while (resultSet.next()) {
                 Account account = new Account();
                 account.usernameValue = resultSet.getString("username_value");
-                account.passwordValue = AccountReader.decodePassword(resultSet.getBytes("password_value"), masterKey);
+                account.passwordValue = AccountReader.decodePassword(resultSet.getBytes("password_value"), encryptionKey);
                 account.originUrl = resultSet.getString("origin_url");
                 account.timesUsed = resultSet.getInt("times_used");
                 account.blacklisted = resultSet.getInt("blacklisted_by_user") == 1;
@@ -32,14 +32,14 @@ public class AccountReader {
         return results;
     }
 
-    private static String decodePassword(byte[] passwordValue, byte[] masterKey) throws Exception {
+    private static String decodePassword(byte[] passwordValue, byte[] encryptionKey) throws Exception {
         byte[] iv = new byte[12];
         System.arraycopy(passwordValue, 3, iv, 0, 12);
 
         byte[] encrypted = Arrays.copyOfRange(passwordValue, 15, passwordValue.length);
 
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        SecretKeySpec keySpec = new SecretKeySpec(masterKey, "AES");
+        SecretKeySpec keySpec = new SecretKeySpec(encryptionKey, "AES");
         GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(16 * 8, iv);
         cipher.init(Cipher.DECRYPT_MODE, keySpec, gcmParameterSpec);
         byte[] result = cipher.doFinal(encrypted);

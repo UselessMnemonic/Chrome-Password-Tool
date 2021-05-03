@@ -83,48 +83,42 @@ public class Main {
 
         if (outputFile != null) {
             try {
-               outputStream = new PrintStream(outputFile);
-            } catch (FileNotFoundException e) {
+                outputStream = new PrintStream(outputFile);
+            }
+            catch (FileNotFoundException e) {
                 System.err.printf("The output file cannot be used: %s\n\n", e.getMessage());
                 return;
             }
         }
 
-        byte[] masterKey;
+        byte[] encryptionKey;
         try {
-            masterKey = Base64.getDecoder().decode(keyString);
-            masterKey = Arrays.copyOfRange(masterKey, 5, masterKey.length);
-        } catch (IllegalArgumentException e) {
+            encryptionKey = Base64.getDecoder().decode(keyString);
+            encryptionKey = Arrays.copyOfRange(encryptionKey, 5, encryptionKey.length);
+            encryptionKey = Protector.getInstance().unprotect(encryptionKey);
+        }
+        catch (IllegalArgumentException e) {
             System.err.printf("The provided key is invalid: %s\n\n", e.getMessage());
             return;
         }
-
-        Protector protector;
-        try {
-            protector = Protector.getInstance();
-        } catch (Exception e) {
-            System.err.printf("Error loading libraries: %s\n\n", e.getMessage());
-            return;
-        }
-
-        try {
-            masterKey = protector.unprotect(masterKey);
-        } catch (Exception e) {
+        catch (Exception e) {
             System.err.printf("Master key recovery failed: %s\n\n", e.getMessage());
             return;
         }
 
         try {
             final boolean verbose = outputAllData;
-            List<Account> accounts = AccountReader.readAccounts(passwordsFile, masterKey);
+            List<Account> accounts = AccountReader.readAccounts(passwordsFile, encryptionKey);
 
             String outputString = accounts.stream()
                     .map(a -> a.toString(verbose) + "\n")
                     .collect(Collectors.joining());
 
             outputStream.print(outputString);
-        } catch (Exception e) {
-            System.err.printf("Error while decoding passwords: %s", e.getMessage());
+        }
+        catch (Exception e) {
+            System.err.printf("Error while decoding passwords: %s\n\n", e.getMessage());
+            return;
         }
 
         System.out.println();
