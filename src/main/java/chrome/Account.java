@@ -1,3 +1,5 @@
+package chrome;
+
 public class Account {
 
     public String originUrl;

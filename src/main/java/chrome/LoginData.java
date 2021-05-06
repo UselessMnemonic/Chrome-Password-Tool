@@ -1,45 +1,54 @@
+package chrome;
+
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
-public class AccountReader {
+public class LoginData {
 
-    public static List<Account> readAccounts(File passwordsFile, byte[] encryptionKey) throws Exception {
-        ArrayList<Account> results = new ArrayList<>();
+    private final String path;
+    private List<Account> accounts;
 
-        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:"+passwordsFile.getAbsolutePath())) {
+    public LoginData(String path) {
+        this.path = path;
+    }
+
+    public List<Account> decrypt(byte[] key) throws Exception {
+        if (accounts != null) return accounts;
+
+        List<Account> result = new ArrayList<>();
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + path)) {
             ResultSet resultSet = connection.createStatement().executeQuery("SELECT * FROM logins");
             while (resultSet.next()) {
                 Account account = new Account();
                 account.usernameValue = resultSet.getString("username_value");
-                account.passwordValue = AccountReader.decodePassword(resultSet.getBytes("password_value"), encryptionKey);
+                account.passwordValue = decodePassword(resultSet.getBytes("password_value"), key);
                 account.originUrl = resultSet.getString("origin_url");
                 account.timesUsed = resultSet.getInt("times_used");
                 account.blacklisted = resultSet.getInt("blacklisted_by_user") == 1;
-                results.add(account);
+                result.add(account);
             }
-        } catch (Exception e) {
-            throw e;
         }
-        return results;
+        accounts = Collections.unmodifiableList(result);
+        return accounts;
     }
 
-    private static String decodePassword(byte[] passwordValue, byte[] encryptionKey) throws Exception {
+    private static String decodePassword(byte[] passwordValue, byte[] key) throws Exception {
         byte[] iv = new byte[12];
         System.arraycopy(passwordValue, 3, iv, 0, 12);
 
         byte[] encrypted = Arrays.copyOfRange(passwordValue, 15, passwordValue.length);
 
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        SecretKeySpec keySpec = new SecretKeySpec(encryptionKey, "AES");
+        SecretKeySpec keySpec = new SecretKeySpec(key, "AES");
         GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(16 * 8, iv);
         cipher.init(Cipher.DECRYPT_MODE, keySpec, gcmParameterSpec);
         byte[] result = cipher.doFinal(encrypted);
