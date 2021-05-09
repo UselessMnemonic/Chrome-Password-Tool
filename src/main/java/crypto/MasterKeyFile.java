@@ -44,6 +44,10 @@ public class MasterKeyFile {
         return masterKey;
     }
 
+    public String getGuid() {
+        return guid;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

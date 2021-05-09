@@ -5,8 +5,11 @@ import crypto.Blob;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class Utils {
     public static String toHexString(byte[] bytes) {
@@ -26,6 +29,14 @@ public class Utils {
     public static String findMasterKey(String path, String sid, Blob forBlob) {
         path += "AppData\\Roaming\\Microsoft\\Protect\\" + sid + "\\" + forBlob.getMasterKeyGUID();
         return path;
+    }
+
+    public static List<String> findAllMasterKeys(String path, String sid) throws IOException {
+        path += "AppData\\Roaming\\Microsoft\\Protect\\" + sid + "\\";
+        return Files.list(Paths.get(path))
+                .map(Path::toString)
+                .filter(s -> !s.contains("Preferred"))
+                .collect(Collectors.toList());
     }
 
     public static String autoMasterKey(String path, String sid) throws IOException {

@@ -1,7 +1,5 @@
 package chrome;
 
-import crypto.Blob;
-import crypto.MasterKey;
 import crypto.MasterKeyFile;
 import utils.NullPrintStream;
 import utils.PasswordDialog;
@@ -9,13 +7,14 @@ import utils.Utils;
 
 import java.io.File;
 import java.io.PrintStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class Main {
 
     private static final String HELP_TEXT =
-    "Usage: java -jar Chrome-Password-Tool.jar <user-folder> [--output <out-file>] [--dry-run]\n" +
+    "Usage: java -jar Chrome-Password-Tool.jar <user-folder> [--brute-force] [--output <out-file>] [--dry-run]\n" +
     "\n" +
     "Arguments:\n" +
     "    <user-folder>   Selects the user profile, for example from an external drive.\n" +
@@ -24,14 +23,18 @@ public class Main {
     "    --output        Selects a file in which to output the results. It is overwritten if it already exists.\n" +
     "\n" +
     "    --dry-run       Disables all data output, ignoring --output if specified.\n" +
+    "\n" +
+    "    --brute-force   Tests all available master keys for the user.\n" +
     "\n";
 
     public static void main(String[] args) throws Exception {
 
         PrintStream out = System.out;
+        PrintStream except = new NullPrintStream();
         File outputFile = null;
         String userPath;
         boolean dryRun = false;
+        boolean bruteForce = false;
 
         if (args.length == 0) {
             System.out.print(HELP_TEXT);
@@ -49,6 +52,10 @@ public class Main {
                     i++; outputFile = new File(args[i]);
                 } else if ("dry-run".equals(arg)) {
                     dryRun = true;
+                } else if ("brute-force".equals(arg)) {
+                    bruteForce = true;
+                } else if ("verbose".equals(arg)) {
+                    except = System.err;
                 }
             }
         }
@@ -73,21 +80,31 @@ public class Main {
             loginData = new LoginData(userPath + "AppData\\Local\\Google\\Chrome\\User Data\\Default\\Login Data");
         } catch (Exception e) {
             System.err.printf("Error getting Chrome blob: %s\n\n", e.getMessage());
+            e.printStackTrace(except);
             return;
         }
 
-        // find SID and master key
+        // find SID and master keys
         String sid;
-        MasterKeyFile masterKeyFile;
+        List<MasterKeyFile> masterKeyFiles = new ArrayList<>();
         try {
             sid = Utils.autoSid(userPath);
             System.out.printf("User SID seems to be %s\n\n", sid);
-            String mkpath = Utils.findMasterKey(userPath, sid, localState.getKeyBlob());
-            System.out.printf("Required Master Key is %s\n\n", mkpath);
-            masterKeyFile = new MasterKeyFile(mkpath);
+
+            if (bruteForce) {
+                List<String> mkpaths = Utils.findAllMasterKeys(userPath, sid);
+                for (String mkpath : mkpaths) {
+                    masterKeyFiles.add(new MasterKeyFile(mkpath));
+                }
+            }
+            else {
+                String mkpath = Utils.findMasterKey(userPath, sid, localState.getKeyBlob());
+                masterKeyFiles.add(new MasterKeyFile(mkpath));
+            }
         }
         catch (Exception e) {
             System.err.printf("Error retrieving master key: %s\n\n", e.getMessage());
+            e.printStackTrace(except);
             return;
         }
 
@@ -98,40 +115,49 @@ public class Main {
             return;
         }
 
-        // decrypt master key
-        try {
-            masterKeyFile.getMasterKey().decryptWithPassword(sid, password);
-        } catch (Exception e) {
-            System.err.printf("Error decrypting master key: %s. Make sure your password is correct.\n\n", e.getMessage());
+        for (MasterKeyFile masterKeyFile : masterKeyFiles) {
+            System.out.printf("Trying Master Key %s\n\n", masterKeyFile.getGuid());
+
+            // decrypt master key
+            try {
+                masterKeyFile.getMasterKey().decryptWithPassword(sid, password);
+            } catch (Exception e) {
+                System.err.printf("Error decrypting master key: %s. Make sure your password is correct.\n\n", e.getMessage());
+                e.printStackTrace(except);
+                continue;
+            }
+
+            // decrypt chrome key
+            try {
+                localState.getKeyBlob().decrypt(masterKeyFile.getMasterKey());
+            } catch (Exception e) {
+                System.err.printf("Error decrypting chrome blob: %s. Make sure your password is correct.\n\n", e.getMessage());
+                e.printStackTrace(except);
+                continue;
+            }
+
+            System.out.printf("%s\n\n", masterKeyFile);
+            System.out.printf("%s\n\n", localState.getKeyBlob());
+
+            // show passwords
+            List<Account> accounts;
+            try {
+                accounts = loginData.decrypt(localState.getKeyBlob().getPlaintext());
+            }
+            catch (Exception e) {
+                System.err.printf("Error while decoding passwords: %s. Make sure your password is correct.\n\n", e.getMessage());
+                e.printStackTrace(except);
+                continue;
+            }
+
+            String outputString = accounts.stream()
+                    .map(a -> a.toString() + "\n")
+                    .collect(Collectors.joining());
+
+            out.print(outputString);
             return;
         }
 
-        System.out.printf("%s\n\n", masterKeyFile);
-        System.out.printf("%s\n\n", localState.getKeyBlob());
-
-        // decrypt chrome key
-        try {
-            localState.getKeyBlob().decrypt(masterKeyFile.getMasterKey());
-        } catch (Exception e) {
-            System.err.printf("Error decrypting chrome blob: %s. Make sure your password is correct.\n\n", e.getMessage());
-            return;
-        }
-
-        // show passwords
-        List<Account> accounts;
-        try {
-            accounts = loginData.decrypt(localState.getKeyBlob().getPlaintext());
-        }
-        catch (Exception e) {
-            System.err.printf("Error while decoding passwords: %s. Make sure your password is correct.\n\n", e.getMessage());
-            e.printStackTrace();
-            return;
-        }
-
-        String outputString = accounts.stream()
-                .map(a -> a.toString() + "\n")
-                .collect(Collectors.joining());
-
-        out.print(outputString);
+        System.err.print("No Master Key worked.\n\n");
     }
 }

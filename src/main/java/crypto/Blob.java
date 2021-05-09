@@ -44,7 +44,7 @@ public class Blob {
         buffer.get(providerBytes);
         provider = new GUID(providerBytes);
 
-        int blobStart = buffer.arrayOffset();
+        int blobStart = buffer.position();
 
         mkversion = buffer.getInt();
 
@@ -85,7 +85,7 @@ public class Blob {
         cipherText = new byte[cipherLen];
         buffer.get(cipherText);
 
-        this.blob = Arrays.copyOfRange(data, blobStart, buffer.arrayOffset());
+        this.blob = Arrays.copyOfRange(data, blobStart, buffer.position());
 
         int signLen = buffer.getInt();
         sign = new byte[signLen];
@@ -93,7 +93,6 @@ public class Blob {
     }
 
     public byte[] decrypt(MasterKey masterKey) throws Exception {
-        if (plaintext != null) return plaintext;
         byte[] sessionkey = CryptSessionKeyWin7(masterKey.getPlainText(), salt, hashAlgo);
         byte[] key = CryptDeriveKey(sessionkey, cipherAlgo, hashAlgo);
 
@@ -110,11 +109,22 @@ public class Blob {
                 throw new UnsupportedOperationException(cipherAlgo.name + " is unsupported");
         }
 
-        plaintext = cipher.doFinal(cipherText);
-        byte padding = plaintext[plaintext.length - 1];
+        byte[] result = cipher.doFinal(cipherText);
+        byte padding = result[result.length - 1];
         if (padding <= cipherAlgo.blockLen)
-            plaintext = Arrays.copyOfRange(plaintext, 0, plaintext.length - padding);
+            result = Arrays.copyOfRange(result, 0, result.length - padding);
+
+        byte[] computedSign = CryptSessionKeyWin7(masterKey.getPlainText(), hmac, hashAlgo, blob);
+        if (!Arrays.equals(sign, computedSign)) {
+            throw new IllegalStateException("Computed sign is incorrect");
+        }
+
+        plaintext = result;
         return plaintext;
+    }
+
+    public byte[] getPlaintext() {
+        return Arrays.copyOfRange(plaintext, 0, plaintext.length);
     }
 
     public GUID getMasterKeyGUID() {
@@ -139,11 +149,11 @@ public class Blob {
         return sb.toString();
     }
 
-    public static byte[] decryptBlob(byte[] blob, MasterKey masterKey) throws Exception {
-        return new Blob(blob).decrypt(masterKey);
+    public static byte[] CryptSessionKeyWin7(byte[] masterKey, byte[] salt, Algorithm hashAlgo) throws Exception {
+        return CryptSessionKeyWin7(masterKey, salt, hashAlgo, null);
     }
 
-    public static byte[] CryptSessionKeyWin7(byte[] masterKey, byte[] salt, Algorithm hashAlgo) throws Exception {
+    public static byte[] CryptSessionKeyWin7(byte[] masterKey, byte[] salt, Algorithm hashAlgo, byte[] verifyBlob) throws Exception {
         if (masterKey.length > 20) {
             masterKey = MessageDigest.getInstance("SHA1").digest(masterKey);
         }
@@ -154,6 +164,7 @@ public class Blob {
                 SecretKeySpec secret = new SecretKeySpec(masterKey, "HmacSHA512");
                 hmac.init(secret);
                 hmac.update(salt);
+                if (verifyBlob != null) hmac.update(verifyBlob);
                 return hmac.doFinal();
 
             default:
@@ -182,9 +193,5 @@ public class Blob {
         ipad = MessageDigest.getInstance(hashAlgo.name).digest(ipad);
         opad = MessageDigest.getInstance(hashAlgo.name).digest(opad);
         return Utils.join(ipad, opad);
-    }
-
-    public byte[] getPlaintext() {
-        return Arrays.copyOfRange(plaintext, 0, plaintext.length);
     }
 }
